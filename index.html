@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Filtro Selfie de Partículas (Python)</title>
+    
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+        #loading {
+            color: cyan;
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: monospace;
+            text-align: center;
+        }
+        #startBtn {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading">Cargando Python...<br>Luego presioná el botón</div>
+<button id="startBtn">Iniciar cámara</button>
+
+<script type="py">
+from pyscript import window, document
+import random
+import asyncio
+
+p5 = window
+
+particles = []
+capture = None
+camera_started = False
+
+class Particle:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.vx = random.uniform(-3, 3)
+        self.vy = random.uniform(-3, 3)
+        self.alpha = 255
+        self.size = random.uniform(6, 14)
+        self.color = [0,255,255] if random.random()>0.5 else [255,0,255]
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.alpha -= 6
+        self.size *= 0.97
+
+    def draw(self):
+        p5.noStroke()
+        p5.fill(self.color[0], self.color[1], self.color[2], self.alpha)
+        p5.circle(self.x, self.y, self.size)
+
+def start_camera(event=None):
+    global capture, camera_started
+
+    constraints = {
+        'video': {'facingMode': 'user'},
+        'audio': False
+    }
+
+    capture = p5.createCapture(constraints)
+    capture.size(320, 240)
+    capture.hide()
+
+    document.getElementById("startBtn").style.display = "none"
+    document.getElementById("loading").style.display = "none"
+
+    camera_started = True
+
+async def setup():
+    await asyncio.sleep(1)
+    p5.createCanvas(p5.windowWidth, p5.windowHeight)
+
+    document.getElementById("startBtn").addEventListener("click", start_camera)
+
+def draw():
+    global capture
+
+    p5.background(0, 20)
+
+    if not camera_started or capture is None:
+        return
+
+    if capture.width == 0:
+        return
+
+    capture.loadPixels()
+    if len(capture.pixels) == 0:
+        return
+
+    # espejo
+    p5.push()
+    p5.translate(p5.width, 0)
+    p5.scale(-1, 1)
+
+    # DEBUG (activar si querés ver la cámara)
+    # p5.image(capture, 0, 0, p5.width, p5.height)
+
+    for i in range(80):
+        rx = random.randint(0, capture.width - 1)
+        ry = random.randint(0, capture.height - 1)
+
+        index = (rx + ry * capture.width) * 4
+
+        if index < len(capture.pixels):
+            if capture.pixels[index] > 120:
+                sx = p5.map(rx, 0, capture.width, 0, p5.width)
+                sy = p5.map(ry, 0, capture.height, 0, p5.height)
+                particles.append(Particle(sx, sy))
+
+    p5.pop()
+
+    for p in particles:
+        p.update()
+        p.draw()
+
+    particles[:] = [p for p in particles if p.alpha > 0]
+
+window.setup = setup
+window.draw = draw
+</script>
+
+</body>
+</html>
